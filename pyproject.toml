@@ -1,0 +1,31 @@
+[project]
+name = "contact-card"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Aaron-Elihu", email = "65421861+Aaron-Elihu@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "easyocr>=1.7.2",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "pdf2image>=1.17.0",
+    "pillow>=12.3.0",
+    "pytesseract>=0.3.13",
+    "python-multipart>=0.0.32",
+    "streamlit>=1.62.0",
+]
+
+[project.scripts]
+contact-card = "contact_card:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.4",
+]
