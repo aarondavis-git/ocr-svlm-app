@@ -26,6 +26,7 @@ data/
 *.jpg
 *.jpeg
 *.png
+!assets/*.png
 
 # Streamlit Tools
 .claude/
