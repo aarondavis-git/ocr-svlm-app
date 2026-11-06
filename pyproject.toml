@@ -1,12 +1,12 @@
 [project]
-name = "contact-card"
+name = "ocr-svlm-app"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local extraction of handwritten form data with OCR engines and vision-language models"
 readme = "README.md"
 authors = [
     { name = "Aaron-Elihu", email = "65421861+Aaron-Elihu@users.noreply.github.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "easyocr>=1.7.2",
     "fastapi>=0.141.1",
@@ -17,11 +17,11 @@ dependencies = [
     "python-dotenv>=1.2.3",
     "python-multipart>=0.0.32",
     "streamlit>=1.62.0",
-    "unicorn>=2.1.4",
+    "uvicorn>=0.30.0",
 ]
 
 [project.scripts]
-contact-card = "cli:main"
+ocr-svlm = "cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
@@ -29,7 +29,13 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = "src"
-module-name = ["api", "ingestion", "review", "cli"]
+module-name = ["api", "ingestion", "forms", "review", "cli"]
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "PLW"]
 
 [tool.mypy]
 ignore_missing_imports = false
@@ -40,7 +46,7 @@ ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.12.0",
+    "httpx2>=2.16.0",
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     "ruff>=0.16.4",

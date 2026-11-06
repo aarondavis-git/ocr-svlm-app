@@ -18,12 +18,15 @@ wheels/
 # OS
 .DS_Store
 
-# Contact cards
+# Folders
+data/
+
+# Documents
 *.pdf
 *.jpg
 *.jpeg
 *.png
 
-# Streamlit
+# Streamlit Tools
 .claude/
 .agents/

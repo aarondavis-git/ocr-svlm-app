@@ -1,9 +1,14 @@
 # tests/test_ingestion.py
 
 import pytest
-from ingestion.ingestion import extract_fields
 from PIL import Image
-from ingestion.ingestion import ExtractedField, extract_fields, extract_with_tesseract
+
+from ingestion.ingestion import (
+    ENGINES,
+    ExtractedField,
+    extract_fields,
+    extract_with_tesseract,
+)
 
 
 def _dummy_image() -> Image.Image:
@@ -20,9 +25,8 @@ def test_extract_fields_error_message_lists_valid_engines():
         extract_fields(image=_dummy_image(), engine="bogus")
 
     message = str(exc_info.value)
-    assert "tesseract" in message
-    assert "easyocr" in message
-    assert "local_vlm" in message
+    for engine in ENGINES:
+        assert engine in message
 
 
 def test_extract_with_tesseract_returns_extracted_fields():

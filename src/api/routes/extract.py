@@ -2,15 +2,16 @@
 
 import tempfile
 from pathlib import Path
+from typing import Annotated
+
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pdf2image import convert_from_path
 from PIL import Image
 from pydantic import BaseModel
-from ingestion.ingestion import ExtractedField, extract_fields
+
+from ingestion.ingestion import ENGINES, ExtractedField, extract_fields
 
 router = APIRouter()
-
-ALLOWED_ENGINES = {"tesseract", "easyocr", "local_vlm"}
 
 
 class ExtractResponse(BaseModel):
@@ -21,13 +22,13 @@ class ExtractResponse(BaseModel):
 
 @router.post("/extract", response_model=ExtractResponse)
 async def extract(
-    file: UploadFile = File(...), engine: str = "tesseract"
+    file: Annotated[UploadFile, File()], engine: str = "easyocr"
 ) -> ExtractResponse:
-    """Extract contact fields from an uploaded card (PDF or image)."""
-    if engine not in ALLOWED_ENGINES:
+    """Extract text from an uploaded scan (PDF or image)."""
+    if engine not in ENGINES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown engine '{engine}'. Choose from {sorted(ALLOWED_ENGINES)}.",
+            detail=f"Unknown engine '{engine}'. Choose from {list(ENGINES)}.",
         )
 
     if not file.filename:
