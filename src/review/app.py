@@ -1,15 +1,14 @@
 # src/review/app.py
 
 import hashlib
-import io
 import logging
 
 import streamlit as st
-from pdf2image import convert_from_bytes
 from PIL import Image
 
 from forms.registry import FORMS
 from ingestion.ingestion import ENGINES, ExtractedField, extract_fields
+from ingestion.loading import load_pages
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,11 +23,9 @@ ENGINE_LABELS = {
 
 
 @st.cache_data
-def load_pages(data: bytes, filename: str) -> list[Image.Image]:
-    """Turn an uploaded file into page images (cached per file)."""
-    if filename.lower().endswith(".pdf"):
-        return convert_from_bytes(data)
-    return [Image.open(io.BytesIO(data)).convert("RGB")]
+def load_pages_cached(data: bytes, filename: str) -> list[Image.Image]:
+    """Cache page loading per file, so PDFs aren't converted on every rerun."""
+    return load_pages(data, filename)
 
 
 st.set_page_config(page_title="Clubhouse Form Review", layout="wide")
@@ -74,7 +71,7 @@ if uploaded_file is None:
 
 data = uploaded_file.getvalue()
 file_id = hashlib.sha256(data).hexdigest()[:12]
-pages = load_pages(data, uploaded_file.name)
+pages = load_pages_cached(data, uploaded_file.name)
 
 if len(pages) > 1:
     st.warning(f"This PDF has {len(pages)} pages. Only the first page is processed.")
