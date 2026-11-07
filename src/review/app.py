@@ -2,13 +2,17 @@
 
 import hashlib
 import logging
+from datetime import date
 
+import pandas as pd
 import streamlit as st
 from PIL import Image
 
+from export.excel import export_rows, to_excel
 from forms.registry import FORMS
-from ingestion.ingestion import ENGINES, ExtractedField, extract_fields
+from ingestion.ingestion import ENGINES, extract_form
 from ingestion.loading import load_pages
+from ingestion.results import PageResult
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,6 +24,7 @@ ENGINE_LABELS = {
     "easyocr": "EasyOCR",
     "qwen3_vl": "Qwen3-VL",
 }
+SOURCE_COLUMNS = ["source_file", "page", "engine"]
 
 
 @st.cache_data
@@ -31,9 +36,9 @@ def load_pages_cached(data: bytes, filename: str) -> list[Image.Image]:
 st.set_page_config(page_title="Clubhouse Form Review", layout="wide")
 st.title("Clubhouse Form Review")
 
-# Results survive reruns: {(file_id, form_key, engine): [ExtractedField, ...]}
-if "results" not in st.session_state:
-    st.session_state.results = {}
+# Extraction results survive reruns: {(files_id, form_key, engine): batch}
+if "batches" not in st.session_state:
+    st.session_state.batches = {}
 
 # 1. Choose form and engine
 form_key = st.segmented_control(
@@ -42,70 +47,116 @@ form_key = st.segmented_control(
     format_func=lambda key: FORMS[key].display_name,
     default="prospect",
 )
-
 engine = st.segmented_control(
     "Engine",
     options=ENGINES,
     format_func=lambda key: ENGINE_LABELS.get(key, key),
     default=ENGINES[0],
-    help=(
-        "Tesseract: fast, classical OCR, weak on handwriting. "
-        "EasyOCR: local deep-learning OCR, decent on handwriting. "
-        "Qwen3-VL: local vision-language model via LM Studio. Requires "
-        "LM Studio running with a vision model loaded."
-    ),
 )
-
 if form_key is None or engine is None:
     st.info("Choose a form and an engine.")
     st.stop()
 
-# 2. Upload
-uploaded_file = st.file_uploader(
-    "Upload a scanned form (PDF or image)", type=["pdf", "png", "jpg", "jpeg"]
-)
+spec = FORMS[form_key]
 
-if uploaded_file is None:
-    st.info("Upload a scan to get started.")
+# 2. Upload one or more files
+
+uploads = st.file_uploader(
+    "Upload scanned forms (PDF or images)",
+    type=["pdf", "png", "jpg", "jpeg"],
+    accept_multiple_files=True,
+)
+if not uploads:
+    st.info("Upload one or more scans to get started.")
     st.stop()
 
-data = uploaded_file.getvalue()
-file_id = hashlib.sha256(data).hexdigest()[:12]
-pages = load_pages_cached(data, uploaded_file.name)
+files = {upload.name: upload.getvalue() for upload in uploads}
+files_id = hashlib.sha256(
+    b"".join(hashlib.sha256(data).digest() for data in files.values())
+).hexdigest()[:12]
+batch_key = (files_id, form_key, engine)
 
-if len(pages) > 1:
-    st.warning(f"This PDF has {len(pages)} pages. Only the first page is processed.")
-image = pages[0]
+total_pages = sum(len(load_pages_cached(data, name)) for name, data in files.items())
+st.caption(f"{len(files)} file(s), {total_pages} page(s)")
 
-run_key = (file_id, form_key, engine)
+# 3. Run extraction on every page
 
-# 3. Run
-if st.button("Run", type="primary"):
-    label = ENGINE_LABELS.get(engine, engine)
-    try:
-        with st.spinner(f"Running {label} on {FORMS[form_key].display_name}..."):
-            st.session_state.results[run_key] = extract_fields(image, engine=engine)
-    except RuntimeError as e:
-        st.error(str(e))
+if st.button(f"Run on {total_pages} page(s)", type="primary"):
+    results: list[PageResult] = []
+    errors: list[str] = []
+    progress = st.progress(0.0, text="Starting...")
+    done = 0
 
-# 4. Show scan and results
-col1, col2 = st.columns(2)
+    for name, data in files.items():
+        for page_number, image in enumerate(load_pages_cached(data, name), start=1):
+            progress.progress(done / total_pages, text=f"{name}, page {page_number}")
+            try:
+                form = extract_form(image, spec, engine)
+                results.append(
+                    PageResult(
+                        source_file=name,
+                        page=page_number,
+                        form_key=form_key,
+                        engine=engine,
+                        data=form.model_dump(),
+                    )
+                )
+            except RuntimeError as e:
+                errors.append(f"{name}, page {page_number}: {e}")
+            done += 1
 
-with col1:
+    progress.progress(1.0, text="Done")
+    st.session_state.batches[batch_key] = {"results": results, "errors": errors}
+
+batch = st.session_state.batches.get(batch_key)
+if batch is None:
+    st.info("Press **Run** to extract all pages.")
+    st.stop()
+
+for error in batch["errors"]:
+    st.error(error)
+if not batch["results"]:
+    st.warning("Nothing was extracted.")
+    st.stop()
+
+# 4. Review: scan on the left, editable table on the right
+
+original = pd.DataFrame(export_rows(batch["results"], spec))
+if original.empty:
+    st.warning("No filled-in rows were found.")
+    st.stop()
+
+col_scan, col_table = st.columns([2, 3])
+
+with col_scan:
     st.subheader("Scan")
-    st.image(image, width="stretch")
+    pages = [(r.source_file, r.page) for r in batch["results"]]
+    name, page_number = st.selectbox(
+        "Show page", pages, format_func=lambda p: f"{p[0]}, page {p[1]}"
+    )
+    st.image(load_pages_cached(files[name], name)[page_number - 1], width="stretch")
 
-with col2:
-    st.subheader("Extracted text (edit as needed)")
-    results: list[ExtractedField] | None = st.session_state.results.get(run_key)
+with col_table:
+    st.subheader("Review (edit cells to correct them)")
+    edited = st.data_editor(
+        original,
+        key=f"editor_{batch_key}",
+        num_rows="fixed",
+        disabled=SOURCE_COLUMNS,
+        hide_index=True,
+        width="stretch",
+    )
 
-    if results is None:
-        st.info("Press **Run** to extract this scan.")
-    elif not results:
-        st.warning("No text found.")
-    else:
-        for i, field in enumerate(results):
-            label = f"Field {i + 1}"
-            if field.confidence is not None:
-                label += f" (confidence: {field.confidence:.2f})"
-            st.text_input(label, value=field.text, key=f"{run_key}_{i}")
+    corrections = int(
+        (original.fillna("").astype(str) != edited.fillna("").astype(str)).sum().sum()
+    )
+    st.caption(f"{len(edited)} row(s), {corrections} cell(s) corrected")
+
+    # 5. Export
+    st.download_button(
+        "Download Excel",
+        data=to_excel(edited, spec.display_name),
+        file_name=f"{spec.key}_{date.today():%Y-%m-%d}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary",
+    )

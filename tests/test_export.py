@@ -26,6 +26,6 @@ def test_one_row_per_form():
 
 def test_excel_keeps_leading_zeros():
     rows = prospect_rows([_result(1, "01067 Dresden")])
-    data = to_excel(rows, "Interessenten")
+    data = to_excel(pd.DataFrame(rows), "Interessenten")
     df = pd.read_excel(io.BytesIO(data), dtype=str)
     assert df.loc[0, "postal_code"] == "01067"

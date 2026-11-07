@@ -9,7 +9,7 @@ PLZ_CITY = re.compile(r"^\s*(\d{5})\s*,?\s*(.+?)\s*$")
 
 
 def split_postal_code_city(value: str | None) -> tuple[str | None, str | None]:
-    """'81539 München' → ('81539', 'München'). If it can't split, keep it as the city."""
+    """'81539 München' → ('81539', 'München'). Unsplittable text goes to city."""
     if not value:
         return None, None
     match = PLZ_CITY.match(value)
