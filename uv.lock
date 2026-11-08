@@ -998,6 +998,7 @@ name = "ocr-svlm-app"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "easyocr" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1023,6 +1024,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2026.7.22" },
     { name = "easyocr", specifier = ">=1.7.2" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "httpx", specifier = ">=0.28.1" },

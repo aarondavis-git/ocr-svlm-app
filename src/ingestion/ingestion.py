@@ -11,6 +11,7 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
+import certifi
 import easyocr
 import httpx
 import numpy as np
@@ -26,6 +27,9 @@ from forms.registry import FormSpec
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+# Python from python.org (macOS) ships without trusted certificates, which breaks
+# EasyOCR's first-run model download. Use certifi's bundle unless one is set already.
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
 # Settings
 LMSTUDIO_BASE_URL = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
