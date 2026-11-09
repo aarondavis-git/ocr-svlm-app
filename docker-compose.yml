@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      DEFAULT_VLM_MODEL: ${DEFAULT_VLM_MODEL:-qwen/qwen3-vl-4b}
+    volumes:
+      - ~/.EasyOCR:/home/app/.EasyOCR
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
